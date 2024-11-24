@@ -70,7 +70,7 @@ const TabNavigation = () => {
             })}
         >
             <Tab.Screen name="Feeds" component={Feeds} options={{ headerShown: false }} />
-            <Tab.Screen name="Notifications" component={Notic} options={{ headerShown: false }} />
+            <Tab.Screen name="Notificationsk" component={Notic} options={{ headerShown: false }} />
             <Tab.Screen name="Message" component={Message} options={{ headerShown: false }} />
             <Tab.Screen name="Profile" component={Profile} options={{ headerShown: false }} />
             <Tab.Screen name="Settings" component={Setting} options={{ headerShown: false}} />
