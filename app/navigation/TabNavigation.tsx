@@ -9,6 +9,7 @@ import ForgetPass from '../screens/ForgetPass';
 import { StyleSheet, View } from 'react-native';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import Setting from '../screens/Setting';
+import TakePhoto from '../screens/TakePhoto';
 
 
 const Tab = createBottomTabNavigator();
@@ -74,6 +75,7 @@ const TabNavigation = () => {
             <Tab.Screen name="Message" component={Message} options={{ headerShown: false }} />
             <Tab.Screen name="Profile" component={Profile} options={{ headerShown: false }} />
             <Tab.Screen name="Settings" component={Setting} options={{ headerShown: false}} />
+            <Tab.Screen name="TakePhoto" component={TakePhoto} options={{ headerShown: false}} />
         </Tab.Navigator>
     );
 };
