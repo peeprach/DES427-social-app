@@ -1,7 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, FlatList, StyleSheet, Image, TouchableOpacity, TextInput, Alert } from 'react-native';
+import { ref, push, onValue, remove } from 'firebase/database';
+import { getAuth, onAuthStateChanged } from 'firebase/auth';
+import { FIREBASE_DB } from '../../FirebaseConfig';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import * as ImagePicker from 'expo-image-picker';
+import { TouchableWithoutFeedback } from 'react-native';
 
 type Post = {
   id: string;
@@ -13,37 +17,39 @@ type Post = {
 };
 
 const Feed = () => {
-  const [posts, setPosts] = useState<Post[]>([
-    {
-      id: '1',
-      username: 'john_doe',
-      image: 'https://images.unsplash.com/photo-1506748686214-e9df14d4d9d0',
-      caption: 'Enjoying the beautiful sunset 🌅',
-      likes: 120,
-      liked: false,
-    },
-    {
-      id: '2',
-      username: 'jane_smith',
-      image: 'https://images.unsplash.com/photo-1506784983877-45594efa4cbe',
-      caption: 'Loving the vibes here ✨',
-      likes: 89,
-      liked: false,
-    },
-  ]);
-
+  const [posts, setPosts] = useState<Post[]>([]);
   const [image, setImage] = useState<string | null>(null);
   const [caption, setCaption] = useState<string>('');
+  const [showHeart, setShowHeart] = useState<{ [key: string]: boolean }>({});
+  const [username, setUsername] = useState<string>('Anonymous');
 
-  // Function to pick an image from the gallery
+  useEffect(() => {
+    const auth = getAuth();
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user && user.displayName) {
+        setUsername(user.displayName);
+      } else {
+        setUsername('Anonymous');
+      }
+    });
+
+    const postsRef = ref(FIREBASE_DB, 'posts');
+    const unsubscribePosts = onValue(postsRef, (snapshot) => {
+      const postsData: Post[] = [];
+      snapshot.forEach((childSnapshot) => {
+        const post = { id: childSnapshot.key, ...childSnapshot.val() } as Post;
+        postsData.unshift(post); // Reverse chronological order
+      });
+      setPosts(postsData);
+    });
+
+    return () => {
+      unsubscribe();
+      unsubscribePosts();
+    };
+  }, []);
+
   const pickImage = async () => {
-    const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
-
-    if (permissionResult.granted === false) {
-      Alert.alert('Permission Required', 'Please allow access to your photo library.');
-      return;
-    }
-
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,
@@ -52,16 +58,14 @@ const Feed = () => {
     });
 
     if (!result.canceled) {
-      setImage(result.assets[0].uri); // Set the image URI
+      setImage(result.assets[0].uri);
     }
   };
 
-  // Function to take a picture using the camera
   const takePicture = async () => {
-    const permissionResult = await ImagePicker.requestCameraPermissionsAsync();
-
-    if (permissionResult.granted === false) {
-      Alert.alert('Permission Required', 'Please allow access to your camera.');
+    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permission Denied', 'Sorry, we need camera permission to take a picture.');
       return;
     }
 
@@ -72,32 +76,54 @@ const Feed = () => {
     });
 
     if (!result.canceled) {
-      setImage(result.assets[0].uri); // Set the image URI
+      setImage(result.assets[0].uri);
     }
   };
 
-  // Function to handle posting the new photo
-  const handlePost = () => {
+  const handlePost = async () => {
+    const auth = getAuth();
+    const currentUser = auth.currentUser;
+
     if (!image || !caption) {
-      Alert.alert('Error', 'Please add an image and a caption.');
+      Alert.alert('Error', 'Please provide both an image and a caption.');
       return;
     }
 
-    const newPost: Post = {
-      id: (posts.length + 1).toString(),
-      username: 'current_user', // Replace with the logged-in user's username
-      image: image,
-      caption: caption,
+    const newPost = {
+      id: Date.now().toString(),
+      username: currentUser?.displayName || 'Anonymous',
+      image,
+      caption,
       likes: 0,
       liked: false,
     };
 
-    setPosts([newPost, ...posts]); // Add the new post to the state
-    setImage(null); // Reset the image
-    setCaption(''); // Reset the caption
+    try {
+      const postsRef = ref(FIREBASE_DB, 'posts/');
+      await push(postsRef, newPost);
+
+      setPosts([newPost, ...posts]);
+      setImage(null);
+      setCaption('');
+    } catch (error) {
+      console.log('Error posting:', error);
+      Alert.alert('Error', 'Failed to post. Please try again.');
+    }
   };
 
-  const toggleLike = (id: string) => {
+  const deletePost = async (postId: string) => {
+    try {
+      const postRef = ref(FIREBASE_DB, `posts/${postId}`);
+      await remove(postRef);  // ลบโพสต์จาก Firebase
+
+      setPosts((prevPosts) => prevPosts.filter((post) => post.id !== postId));  // ลบโพสต์จาก state
+    } catch (error) {
+      console.error('Error deleting post:', error);
+      Alert.alert('Error', 'Failed to delete post.');
+    }
+  };
+
+  const toggleLikeWithDoubleTap = (id: string) => {
     setPosts((prevPosts) =>
       prevPosts.map((post) =>
         post.id === id
@@ -105,6 +131,11 @@ const Feed = () => {
           : post
       )
     );
+    setShowHeart((prev) => ({ ...prev, [id]: true }));
+
+    setTimeout(() => {
+      setShowHeart((prev) => ({ ...prev, [id]: false }));
+    }, 1000);
   };
 
   const renderItem = ({ item }: { item: Post }) => (
@@ -112,9 +143,18 @@ const Feed = () => {
       <View style={styles.header}>
         <Text style={styles.username}>{item.username}</Text>
       </View>
-      <Image source={{ uri: item.image }} style={styles.image} />
+      <TouchableWithoutFeedback onPress={() => toggleLikeWithDoubleTap(item.id)}>
+        <View>
+          <Image source={{ uri: item.image }} style={styles.image} />
+          {showHeart[item.id] && (
+            <View style={styles.heartContainer}>
+              <MaterialIcons name="favorite" size={100} color="red" />
+            </View>
+          )}
+        </View>
+      </TouchableWithoutFeedback>
       <View style={styles.actions}>
-        <TouchableOpacity onPress={() => toggleLike(item.id)}>
+        <TouchableOpacity onPress={() => toggleLikeWithDoubleTap(item.id)}>
           <MaterialIcons
             name={item.liked ? 'favorite' : 'favorite-border'}
             size={24}
@@ -127,6 +167,9 @@ const Feed = () => {
         <TouchableOpacity>
           <MaterialIcons name="share" size={24} color="black" />
         </TouchableOpacity>
+        <TouchableOpacity onPress={() => deletePost(item.id)}>
+          <MaterialIcons name="delete" size={24} color="black" />
+        </TouchableOpacity>
       </View>
       <Text style={styles.likes}>{item.likes} likes</Text>
       <Text style={styles.caption}>
@@ -137,7 +180,6 @@ const Feed = () => {
 
   return (
     <View style={styles.container}>
-      {/* Post image and caption input */}
       <View style={styles.newPostContainer}>
         {image && <Image source={{ uri: image }} style={styles.previewImage} />}
         <TextInput
@@ -156,8 +198,6 @@ const Feed = () => {
           <Text style={styles.buttonText}>Post</Text>
         </TouchableOpacity>
       </View>
-
-      {/* Feed */}
       <FlatList
         data={posts}
         keyExtractor={(item) => item.id}
@@ -187,6 +227,7 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   input: {
+    marginTop: 50,
     width: '100%',
     height: 40,
     borderRadius: 10,
@@ -200,45 +241,55 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     alignItems: 'center',
     marginBottom: 10,
+    justifyContent: 'space-around',
   },
   buttonText: {
     color: '#fff',
     fontSize: 16,
     fontWeight: 'bold',
+    justifyContent: 'space-around',
   },
   postContainer: {
     marginBottom: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#ccc',
+    paddingBottom: 10,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 10,
   },
   username: {
     fontWeight: 'bold',
-    fontSize: 16,
-    marginLeft: 5,
+    marginRight: 10,
+    marginLeft:10,
+    marginBottom:10,
   },
   image: {
     width: '100%',
-    height: 300,
+    height: 250,
     resizeMode: 'cover',
   },
   actions: {
     flexDirection: 'row',
-    paddingHorizontal: 10,
-    paddingTop: 10,
+    justifyContent: 'space-between',
+    padding: 10,
   },
   icon: {
-    marginHorizontal: 10,
+    marginRight: 10,
   },
   likes: {
+    marginLeft: 10,
     fontWeight: 'bold',
-    marginHorizontal: 10,
-    marginTop: 5,
   },
   caption: {
-    marginHorizontal: 10,
-    marginTop: 5,
+    marginLeft: 10,
+  },
+  heartContainer: {
+    position: 'absolute',
+    top: '30%',
+    left: '40%',
+    zIndex: 1,
   },
 });
+

@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import { FIREBASE_AUTH, FIREBASE_DB } from '../../FirebaseConfig';
-import { createUserWithEmailAndPassword } from 'firebase/auth';
+import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useNavigation } from '@react-navigation/native';
 import { RootStackParamList } from '../../App';
-import { ref, set, get, query, orderByChild, equalTo } from 'firebase/database';
+import { ref, set } from 'firebase/database'; // ใช้ Realtime Database แทน Firestore
+import { FirebaseError } from 'firebase/app';  // นำเข้า FirebaseError
 
 type SignupScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'Signup'>;
 
@@ -19,14 +20,6 @@ const Signup = () => {
 
   const auth = FIREBASE_AUTH;
 
-  const isUsernameAvailable = async (username: string) => {
-    const usersRef = ref(FIREBASE_DB, 'users');
-    const usernameQuery = query(usersRef, orderByChild('username'), equalTo(username));
-
-    const snapshot = await get(usernameQuery);
-    return !snapshot.exists(); // ถ้าไม่มีข้อมูลแสดงว่า username ว่าง
-  };
-
   const handleSignup = async () => {
     if (!email || !username || !password || !confirmPassword) {
       Alert.alert('Error', 'All fields are required.');
@@ -39,17 +32,15 @@ const Signup = () => {
     }
 
     setLoading(true); // Set loading to true when starting the signup process
-
+    
     try {
-      const usernameAvailable = await isUsernameAvailable(username);
-      if (!usernameAvailable) {
-        Alert.alert('Error', 'Username is already taken. Please choose another one.');
-        setLoading(false);
-        return;
-      }
-
       const response = await createUserWithEmailAndPassword(auth, email, password);
       console.log('User created successfully:', response.user);
+
+      // ตั้งค่า displayName ใน Firebase Authentication
+      await updateProfile(response.user, {
+        displayName: username, // ตั้งค่า displayName เป็นชื่อผู้ใช้ที่ผู้สมัครกรอก
+      });
 
       // Save user data to Realtime Database
       const userRef = ref(FIREBASE_DB, 'users/' + response.user.uid); // Realtime Database path
@@ -62,9 +53,26 @@ const Signup = () => {
       Alert.alert('Success', 'Account created successfully!', [
         { text: 'OK', onPress: () => navigation.navigate('Login') },
       ]);
-    } catch (error: any) {
-      console.log('Signup error', error);
-      Alert.alert('Signup failed!', 'Please try again.');
+    } catch (error) {
+      if (error instanceof FirebaseError) {
+        console.log('Signup error', error.message);  // ใช้ error.message จาก FirebaseError
+
+        switch (error.code) {
+          case 'auth/email-already-in-use':
+            Alert.alert('Error', 'The email address is already in use by another account.');
+            break;
+          case 'auth/invalid-email':
+            Alert.alert('Error', 'The email address is not valid.');
+            break;
+          case 'auth/weak-password':
+            Alert.alert('Error', 'The password is too weak.');
+            break;
+          default:
+            Alert.alert('Signup failed!', 'Please try again.');
+        }
+      } else {
+        Alert.alert('Unknown error', 'An unknown error occurred.');
+      }
     } finally {
       setLoading(false);
     }
@@ -73,7 +81,7 @@ const Signup = () => {
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Create Account</Text>
-
+      
       <TextInput
         value={email}
         style={styles.input}
@@ -107,10 +115,10 @@ const Signup = () => {
         onChangeText={(text) => setConfirmPassword(text)}
       />
 
-      <TouchableOpacity style={styles.button} onPress={handleSignup} disabled={loading}>
-        <Text style={styles.buttonText}>{loading ? 'Signing Up...' : 'Sign Up'}</Text>
+      <TouchableOpacity style={styles.button} onPress={handleSignup}>
+        <Text style={styles.buttonText}>Sign Up</Text>
       </TouchableOpacity>
-
+      
       <TouchableOpacity onPress={() => navigation.navigate('Login')} style={styles.loginLink}>
         <Text style={styles.loginText}>Already have an account? <Text style={styles.boldText}>Log In</Text></Text>
       </TouchableOpacity>

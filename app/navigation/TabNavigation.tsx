@@ -4,7 +4,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import Feeds from '../screens/Feeds';
 import Profile from '../screens/Profile';
 import Notic from '../screens/Notic'; 
-import Message from '../screens/Message'; 
+import Search from '../screens/Search'; 
 import ForgetPass from '../screens/ForgetPass';
 import { StyleSheet, View } from 'react-native';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
@@ -30,11 +30,14 @@ const getTabBarIcon = (route: { name: string }, focused: boolean, size: number) 
         case 'Profile':
             iconName = 'person'; // Icon for the Profile screen
             break;
+        case 'TakePhoto':
+            iconName = 'camera';
+            break;
         case 'Notic':
             iconName = 'notifications-off'; // Icon for the Notic (Notifications) screen
             break;
-        case 'Message':
-            iconName = 'message'; // Icon for the Message screen
+        case 'Search':
+            iconName = 'person-search'; // Icon for the Message screen
             break;
         default:
             iconName = 'circle';
@@ -71,11 +74,10 @@ const TabNavigation = () => {
             })}
         >
             <Tab.Screen name="Feeds" component={Feeds} options={{ headerShown: false }} />
-            <Tab.Screen name="Notificationsk" component={Notic} options={{ headerShown: false }} />
-            <Tab.Screen name="Message" component={Message} options={{ headerShown: false }} />
-            <Tab.Screen name="Profile" component={Profile} options={{ headerShown: false }} />
-            <Tab.Screen name="Settings" component={Setting} options={{ headerShown: false}} />
+            <Tab.Screen name="Notifications" component={Notic} options={{ headerShown: false }} />
             <Tab.Screen name="TakePhoto" component={TakePhoto} options={{ headerShown: false}} />
+            <Tab.Screen name="Search" component={Search} options={{ headerShown: false }} />
+            <Tab.Screen name="Profile" component={Profile} options={{ headerShown: false }} />
         </Tab.Navigator>
     );
 };

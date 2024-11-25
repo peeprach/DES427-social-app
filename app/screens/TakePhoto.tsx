@@ -1,10 +1,15 @@
 import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, TextInput, Image, Alert } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
+import { useNavigation, NavigationProp } from '@react-navigation/native';  // Import useNavigation for navigation
+import { RootStackParamList } from '../../App'; // นำเข้าประเภท RootStackParamList จาก App.tsx
 
 const TakePhoto = () => {
   const [photo, setPhoto] = useState<string | null>(null);
   const [description, setDescription] = useState<string>('');
+  
+  // ใช้ NavigationProp<RootStackParamList> เพื่อระบุประเภทของ navigation
+  const navigation = useNavigation<NavigationProp<RootStackParamList>>();
 
   // Function to pick image from gallery
   const pickImage = async () => {
@@ -27,6 +32,20 @@ const TakePhoto = () => {
     }
   };
 
+  // Function to handle post action
+  const handlePost = () => {
+    if (!photo || !description) {
+      Alert.alert('Missing Information', 'Please select a photo and enter a description.');
+      return;
+    }
+
+    // ส่งพารามิเตอร์ photo และ description ไปยังหน้าจอ Feeds
+    navigation.navigate('Feeds', {
+      photo: photo, 
+      description: description,
+    });
+  };
+
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Upload a Photo</Text>
@@ -41,6 +60,11 @@ const TakePhoto = () => {
             onChangeText={setDescription}
           />
           <Text style={styles.previewText}>Description: {description}</Text>
+
+          {/* Post button */}
+          <TouchableOpacity style={styles.button} onPress={handlePost}>
+            <Text style={styles.buttonText}>Post</Text>
+          </TouchableOpacity>
         </>
       ) : (
         <TouchableOpacity style={styles.button} onPress={pickImage}>
@@ -84,6 +108,7 @@ const styles = StyleSheet.create({
     padding: 15,
     borderRadius: 10,
     alignItems: 'center',
+    marginTop: 10,
   },
   buttonText: {
     color: '#fff',

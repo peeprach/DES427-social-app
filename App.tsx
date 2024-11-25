@@ -10,6 +10,7 @@ import Feeds from './app/screens/Feeds';
 import TabNavigation from './app/navigation/TabNavigation'; // Assuming TabNavigation is set up for your Home, Feed, etc.
 import { LogBox } from 'react-native';
 import ForgetPass from './app/screens/ForgetPass';
+import Setting from './app/screens/Setting';  // เพิ่มการนำเข้า Setting
 
 // Ignore non-serializable navigation warnings
 LogBox.ignoreLogs(['Non-serializable values were found in the navigation state']);
@@ -18,9 +19,12 @@ export type RootStackParamList = {
   Login: undefined;
   Signup: undefined;
   Feed: undefined;
-  Tabs: undefined; // Tabs might contain Home and Feed, etc.
+  Tabs: undefined; //contain Home, etc
   ForgetPass: undefined;
-  Profile: undefined;
+  Profile: { userId: string };
+  Setting: undefined;
+  TakePhoto: undefined;
+  Feeds: { photo: string; description: string };  // กำหนดพารามิเตอร์ที่ต้องการ
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -67,6 +71,17 @@ const App: React.FC = () => {
             />
           </>
         )}
+        {/* เพิ่มหน้าจอ Profile และ Setting */}
+        <Stack.Screen
+          name="Profile"
+          component={Profile}
+          options={{ headerShown: true }}
+        />
+        <Stack.Screen
+          name="Setting"
+          component={Setting}
+          options={{ headerShown: true }}
+        />
       </Stack.Navigator>
     </NavigationContainer>
   );
